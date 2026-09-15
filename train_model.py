@@ -96,3 +96,18 @@ model = keras.Sequential([
 
 ])
 
+model.compile(
+    optimizer = keras.optimizers.Adam(learning_rate = 0.001),
+    loss = "sparse_categorical_crossentropy",
+    metric = ["accuracy"]
+)
+
+history = model.fit(
+    train_dataset,
+    validation_data = validation_dataset,
+    epochs = EPOCHS
+)
+
+model.save("model/plant_disease_model.keras")
+print("Model saved Successfully")
+
