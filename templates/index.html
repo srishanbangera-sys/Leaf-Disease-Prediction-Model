@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Leaf Disease Detection</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+
+<body>
+
+
+    <!-- ==================================================
+         MAIN CONTAINER
+         ================================================== -->
+
+    <div class="container">
+
+
+        <!-- Website heading -->
+
+        <h1>
+            🌿 Leaf Disease Detection
+        </h1>
+
+
+        <p class="subtitle">
+            Upload a leaf image to detect possible disease
+        </p>
+
+
+        <!-- ==================================================
+             UPLOAD FORM
+             ================================================== -->
+
+        <form action="/predict"
+              method="POST"
+              enctype="multipart/form-data">
+
+
+            <!-- File input -->
+
+            <label for="image"
+                   class="upload-box">
+
+                <span>
+                    📷
+                </span>
+
+                <p>
+                    Choose a leaf image
+                </p>
+
+                <input
+                    type="file"
+                    id="image"
+                    name="image"
+                    accept="image/*"
+                    required
+                >
+
+            </label>
+
+
+            <!-- Predict button -->
+
+            <button type="submit">
+
+                🔍 Predict Disease
+
+            </button>
+
+
+        </form>
+
+
+    </div>
+
+
+</body>
+
+</html>
+
+
+train_model.py
+
+
+# Import TensorFlow for creating and training the CNN.
+import tensorflow as tf
+
+# Keras provides an easier way to build neural networks.
+from tensorflow import keras
+
+# Import CNN layers such as Conv2D, Pooling, Dense, etc.
+from tensorflow.keras import layers
+
+# Used to work with files and folders.
+import os
+
+# Used to save and load class names in JSON format.
+import json
+
+
+# ============================================================
+# 2. BASIC SETTINGS
+# ============================================================
+
+# Location of the leaf disease image dataset.
+DATASET_PATH = "dataset/PlantVillage"
+
+# Resize all images to 128 x 128 before giving them to the CNN.
+IMAGE_SIZE = (128, 128)
+
+# Process 32 images at a time during training.
+BATCH_SIZE = 32
+
+# Train the CNN by going through the dataset 10 times.
+EPOCHS = 10
+
+
+# ============================================================
+# 3. CHECK WHETHER DATASET EXISTS
+# ============================================================
+
+# Check whether the dataset folder exists before training.
+if not os.path.isdir(DATASET_PATH):
+
+    # Stop the program if the dataset folder is missing.
+    print("ERROR: Dataset folder was not found.")
+
+    print(
+        "Expected location:",
+        DATASET_PATH
+    )
+
+    exit()
+
+
+# ============================================================
+# 4. LOAD TRAINING DATA
+# ============================================================
+
+print("\nLoading training dataset...\n")
+
+
+# Load 80% of the images for training and automatically create labels.
+train_dataset = tf.keras.utils.image_dataset_from_directory(
+
+    DATASET_PATH,
+
+    # Resize every image to 128 x 128.
+    image_size=IMAGE_SIZE,
+
+    # Process images in batches of 32.
+    batch_size=BATCH_SIZE,
+
+    # Reserve 20% of images for validation.
+    validation_split=0.2,
+
+    # Select the 80% training portion.
+    subset="training",
+
+    # Keep the same train/validation split every time.
+    seed=123,
+
+    # Randomly mix training images.
+    shuffle=True
+)
+
+
+# ============================================================
+# 5. LOAD VALIDATION DATA
+# ============================================================
+
+print("\nLoading validation dataset...\n")
+
+
+# Load the remaining 20% of images for validation.
+validation_dataset = tf.keras.utils.image_dataset_from_directory(
+
+    DATASET_PATH,
+
+    # Resize validation images to 128 x 128.
+    image_size=IMAGE_SIZE,
+
+    # Process images in batches of 32.
+    batch_size=BATCH_SIZE,
+
+    # Use the same 80/20 split.
+    validation_split=0.2,
+
+    # Select the validation portion.
+    subset="validation",
+
+    # Use the same seed so the split matches training data.
+    seed=123,
+
+    # No need to shuffle validation images.
+    shuffle=False
+)
+
+
+# ============================================================
+# 6. GET CLASS NAMES
+# ============================================================
+
+# Get disease names from the dataset folder names.
+class_names = train_dataset.class_names
+
+
+print("\n==============================================")
+print("CLASSES FOUND IN DATASET")
+print("==============================================\n")
+
+
+# Display each class number and its corresponding disease name.
+for index, class_name in enumerate(class_names):
+
+    print(
+        index,
+        ":",
+        class_name
+    )
+
+
+# Count the total number of disease classes.
+num_classes = len(class_names)
+
+
+print("\n==============================================")
+
+print(
+    "TOTAL CLASSES:",
+    num_classes
+)
+
+print("==============================================\n")
+
+
+# ============================================================
+# 7. CHECK NUMBER OF CLASSES
+# ============================================================
+
+# A classification model needs at least two classes.
+if num_classes < 2:
+
+    print(
+        "ERROR: Only one class was detected."
+    )
+
+    print(
+        "Check your dataset folder structure."
+    )
+
+    exit()
+
+
+# ============================================================
+# 8. SAVE CLASS NAMES
+# ============================================================
+
+
+
+# Save class names so we can convert predicted numbers into disease names later.
+with open(
+    "model/class_names.json",
+    "w"
+) as file:
+
+    json.dump(
+        class_names,
+        file,
+        indent=4
+    )
+
+
+print(
+    "Class names saved to:",
+    "model/class_names.json"
+)
+
+
+# ============================================================
+# 9. OPTIMIZE DATA LOADING
+# ============================================================
+
+# Let TensorFlow automatically optimize data loading.
+AUTOTUNE = tf.data.AUTOTUNE
+
+
+# Prepare the next training batch while the current batch is processing.
+train_dataset = train_dataset.prefetch(
+    buffer_size=AUTOTUNE
+)
+
+
+# Prepare validation batches efficiently as well.
+validation_dataset = validation_dataset.prefetch(
+    buffer_size=AUTOTUNE
+)
+
+
+# ============================================================
+# 10. DATA AUGMENTATION
+# ============================================================
+
+# Create slightly different versions of images to reduce overfitting.
+data_augmentation = keras.Sequential([
+
+    # Randomly flip images horizontally.
+    layers.RandomFlip("horizontal"),
+
+    # Randomly rotate images slightly.
+    layers.RandomRotation(0.1),
+
+    # Randomly zoom images slightly.
+    layers.RandomZoom(0.1)
+
+])
+
+
+# ============================================================
+# 11. CREATE CNN MODEL
+# ============================================================
+
+# Create the CNN where data flows through layers sequentially.
+model = keras.Sequential([
+
+    # Define the input image size: 128 x 128 RGB image.
+    layers.Input(shape=(128, 128, 3)),
+
+    # Apply random changes to training images.
+    data_augmentation,
+
+    # Convert pixel values from 0-255 into 0-1.
+    layers.Rescaling(1.0 / 255),
+
+    # Learn basic features such as edges and simple patterns.
+    layers.Conv2D(32, (3, 3), activation="relu"),
+
+    # Reduce image size while keeping important features.
+    layers.MaxPooling2D((2, 2)),
+
+    # Learn more complex patterns using 64 filters.
+    layers.Conv2D(64, (3, 3), activation="relu"),
+
+    # Reduce the feature-map size again.
+    layers.MaxPooling2D((2, 2)),
+
+    # Learn advanced features such as disease spots and textures.
+    layers.Conv2D(128, (3, 3), activation="relu"),
+
+    # Reduce the feature-map size again.
+    layers.MaxPooling2D((2, 2)),
+
+    # Convert feature maps into a single list of values.
+    layers.Flatten(),
+
+    # Combine learned features to make the final decision.
+    layers.Dense(128, activation="relu"),
+
+    # Randomly disable neurons during training to reduce overfitting.
+    layers.Dropout(0.5),
+
+    # Produce a probability for each disease class.
+    layers.Dense(num_classes, activation="softmax")
+
+])
+
+
+# ============================================================
+# 12. DISPLAY MODEL ARCHITECTURE
+# ============================================================
+
+print("\nMODEL ARCHITECTURE:\n")
+
+
+# Display all layers and parameters of the CNN.
+model.summary()
+
+
+# ============================================================
+# 13. COMPILE THE MODEL
+# ============================================================
+
+model.compile(
+
+    # Adam updates the model's weights during learning.
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+
+    # Measures how wrong the model's predictions are.
+    loss="sparse_categorical_crossentropy",
+
+    # Track how many predictions are correct.
+    metrics=["accuracy"]
+
+)
+
+
+# ============================================================
+# 14. TRAIN THE MODEL
+# ============================================================
+
+print("\n==============================================")
+print("STARTING MODEL TRAINING")
+print("==============================================\n")
+
+
+# Train the CNN using training data and validate it after each epoch.
+history = model.fit(
+
+    # Training images used to learn patterns.
+    train_dataset,
+
+    # Validation images used to check model performance.
+    validation_data=validation_dataset,
+
+    # Number of complete passes through the training data.
+    epochs=EPOCHS
+)
+
+
+# ============================================================
+# 15. EVALUATE THE MODEL
+# ============================================================
+
+print("\n==============================================")
+print("EVALUATING MODEL")
+print("==============================================\n")
+
+
+# Evaluate the trained model using validation images.
+loss, accuracy = model.evaluate(
+    validation_dataset
+)
+
+
+# ============================================================
+# 16. DISPLAY ACCURACY AND LOSS
+# ============================================================
+
+print("\n==============================================")
+
+
+# Convert accuracy from decimal to percentage.
+print(
+    "VALIDATION ACCURACY:",
+    round(float(accuracy) * 100, 2),
+    "%"
+)
+
+
+# Display the final validation loss.
+print(
+    "VALIDATION LOSS:",
+    round(float(loss), 4)
+)
+
+
+print("==============================================\n")
+
+
+# ============================================================
+# 17. SAVE THE TRAINED CNN MODEL
+# ============================================================
+
+# Save the trained model so we can use it later for predictions.
+model.save(
+    "model/leaf_disease_model.keras"
+)
+
+
+print(
+    "MODEL SAVED SUCCESSFULLY!"
+)
+
+
+# Display where the trained model is stored.
+print(
+    "Model:",
+    "model/leaf_disease_model.keras"
+)
+
+
+# Display where the class names are stored.
+print(
+    "Classes:",
+    "model/class_names.json"
+)

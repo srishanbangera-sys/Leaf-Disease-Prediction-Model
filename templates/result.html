@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Prediction Result</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+
+<body>
+
+
+    <div class="container">
+
+
+        <!-- Page heading -->
+
+        <h1>
+            🌿 Prediction Result
+        </h1>
+
+
+        <!-- Display uploaded image -->
+
+        <div class="image-container">
+
+            <img
+                src="{{ image_path }}"
+                alt="Uploaded Leaf"
+                class="leaf-image"
+            >
+
+        </div>
+
+
+        <!-- Result card -->
+
+        <div class="result-card">
+
+
+            <h2>
+                Detected Disease
+            </h2>
+
+
+            <h3>
+                {{ prediction }}
+            </h3>
+
+
+            <p>
+
+                Confidence:
+
+                <strong>
+                    {{ confidence }}%
+                </strong>
+
+            </p>
+
+
+        </div>
+
+
+        <!-- Try again -->
+
+        <a href="/"
+           class="back-button">
+
+            🔄 Check Another Leaf
+
+        </a>
+
+
+    </div>
+
+
+</body>
+</html>
